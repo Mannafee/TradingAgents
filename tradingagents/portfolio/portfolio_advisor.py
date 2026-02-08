@@ -68,6 +68,16 @@ class PortfolioAdvisor:
             activity_callback({
                 "kind": "candidates_selected",
                 "tickers": [c.ticker for c in candidates],
+                "candidates": [
+                    {
+                        "ticker": c.ticker,
+                        "name": c.name,
+                        "sector": c.sector,
+                        "price": c.price,
+                        "composite_score": c.composite_score,
+                    }
+                    for c in candidates
+                ],
             })
 
         # Step 2: Deep analysis per candidate (parallel)

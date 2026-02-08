@@ -14,11 +14,9 @@ dependencies = [
     "numpy>=1.24.0",
     "pytz>=2025.2",
     "python-dateutil>=2.9.0",
-    "questionary>=2.1.0",
     "rank-bm25>=0.2.2",
     "requests>=2.32.4",
-    "rich>=14.0.0",
-    "typer>=0.21.0",
+    "streamlit>=1.40.0",
     "setuptools>=80.9.0",
     "stockstats>=0.6.5",
     "typing-extensions>=4.14.0",
@@ -27,7 +25,7 @@ dependencies = [
 ]
 
 [project.scripts]
-tradingagents = "cli.app:app"
+tradingagents = "webui.launch:main"
 
 [tool.setuptools.packages.find]
-include = ["tradingagents*", "cli*"]
+include = ["tradingagents*", "webui*"]

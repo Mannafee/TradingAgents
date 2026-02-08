@@ -95,7 +95,7 @@ Our framework decomposes complex trading tasks into specialized roles. This ensu
   <img src="assets/risk.png" width="70%" style="display: inline-block; margin: 0 2%;">
 </p>
 
-## Installation and CLI
+## Installation and Web UI
 
 ### Installation
 
@@ -105,15 +105,9 @@ git clone https://github.com/TauricResearch/TradingAgents.git
 cd TradingAgents
 ```
 
-Create a virtual environment in any of your favorite environment managers:
+Create and sync the environment with `uv`:
 ```bash
-conda create -n tradingagents python=3.13
-conda activate tradingagents
-```
-
-Install dependencies:
-```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 ### Required APIs
@@ -136,27 +130,21 @@ Alternatively, copy `.env.example` to `.env` and fill in your keys:
 cp .env.example .env
 ```
 
-### CLI Usage
+### Web UI Usage
 
-You can also try out the CLI directly by running:
+Run the web app directly:
 ```bash
-python -m cli.main
+uv run tradingagents
 ```
-You will see a screen where you can select your desired tickers, date, LLMs, research depth, etc.
 
-<p align="center">
-  <img src="assets/cli/cli_init.png" width="100%" style="display: inline-block; margin: 0 2%;">
-</p>
+Or launch Streamlit manually:
+```bash
+uv run streamlit run webui/app.py
+```
 
-An interface will appear showing results as they load, letting you track the agent's progress as it runs.
+You can select the same startup options in the UI (budget, currency, horizon, risk, universe, number of candidates, analysts, models, and research depth), then watch live per-stock agent discussions.
 
-<p align="center">
-  <img src="assets/cli/cli_news.png" width="100%" style="display: inline-block; margin: 0 2%;">
-</p>
-
-<p align="center">
-  <img src="assets/cli/cli_transaction.png" width="100%" style="display: inline-block; margin: 0 2%;">
-</p>
+The dashboard shows live per-stock progress, a timeline of phases, and agent chat threads for each ticker while analysis is running.
 
 ## TradingAgents Package
 
