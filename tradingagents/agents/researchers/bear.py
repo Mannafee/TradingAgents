@@ -1,0 +1,52 @@
+"""Bear Researcher agent."""
+
+from tradingagents.agents.base import BaseAgent
+from tradingagents.memory.bm25 import FinancialSituationMemory
+from tradingagents.pipeline.state import PipelineState
+
+
+class BearResearcher(BaseAgent):
+    def __init__(self, client, model, memory: FinancialSituationMemory):
+        super().__init__(client, model)
+        self.memory = memory
+
+    async def run(self, state: PipelineState) -> PipelineState:
+        debate = state.investment_debate_state
+        curr_situation = f"{state.market_report}\n\n{state.sentiment_report}\n\n{state.news_report}\n\n{state.fundamentals_report}"
+        past_memories = self.memory.get_memories(curr_situation, n_matches=2)
+
+        past_memory_str = ""
+        for rec in past_memories:
+            past_memory_str += rec["recommendation"] + "\n\n"
+
+        prompt = f"""You are a Bear Analyst making the case against investing in the stock. Your goal is to present a well-reasoned argument emphasizing risks, challenges, and negative indicators. Leverage the provided research and data to highlight potential downsides and counter bullish arguments effectively.
+
+Key points to focus on:
+
+- Risks and Challenges: Highlight factors like market saturation, financial instability, or macroeconomic threats that could hinder the stock's performance.
+- Competitive Weaknesses: Emphasize vulnerabilities such as weaker market positioning, declining innovation, or threats from competitors.
+- Negative Indicators: Use evidence from financial data, market trends, or recent adverse news to support your position.
+- Bull Counterpoints: Critically analyze the bull argument with specific data and sound reasoning, exposing weaknesses or over-optimistic assumptions.
+- Engagement: Present your argument in a conversational style, directly engaging with the bull analyst's points and debating effectively rather than simply listing facts.
+
+Resources available:
+
+Market research report: {state.market_report}
+Social media sentiment report: {state.sentiment_report}
+Latest world affairs news: {state.news_report}
+Company fundamentals report: {state.fundamentals_report}
+Conversation history of the debate: {debate.history}
+Last bull argument: {debate.current_response}
+Reflections from similar situations and lessons learned: {past_memory_str}
+Use this information to deliver a compelling bear argument, refute the bull's claims, and engage in a dynamic debate that demonstrates the risks and weaknesses of investing in the stock. You must also address reflections and learn from lessons and mistakes you made in the past.
+"""
+
+        response = await self._invoke(prompt)
+        argument = f"Bear Analyst: {response}"
+
+        debate.history = debate.history + "\n" + argument
+        debate.bear_history = debate.bear_history + "\n" + argument
+        debate.current_response = argument
+        debate.count += 1
+
+        return state

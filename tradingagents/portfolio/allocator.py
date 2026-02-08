@@ -2,7 +2,8 @@ import json
 import math
 from typing import List
 
-from langchain_core.messages import HumanMessage
+from tradingagents.client.codex import CodexClient
+from tradingagents.client.types import Message
 
 from .models import (
     PortfolioRequest,
@@ -16,19 +17,21 @@ from .models import (
 class PortfolioAllocator:
     """Synthesizes deep analysis results into a portfolio allocation plan."""
 
-    def __init__(self, llm):
-        self.llm = llm
+    def __init__(self, client: CodexClient, model: str):
+        self.client = client
+        self.model = model
 
-    def allocate(
+    async def allocate(
         self,
         request: PortfolioRequest,
         analyzed_candidates: List[CandidateStock],
     ) -> PortfolioResult:
         """Generate portfolio allocation from analyzed candidates."""
         prompt = self._build_allocation_prompt(request, analyzed_candidates)
-        response = self.llm.invoke([HumanMessage(content=prompt)])
+        messages = [Message(role="user", content=prompt)]
+        response = await self.client.complete(messages, model=self.model)
         return self._parse_allocation_response(
-            response.content, request, analyzed_candidates
+            response.text, request, analyzed_candidates
         )
 
     def _build_allocation_prompt(
@@ -47,7 +50,6 @@ class PortfolioAllocator:
 """
             if c.final_state:
                 if c.final_state.get("market_report"):
-                    # Include key parts of market report
                     market = c.final_state["market_report"]
                     if len(market) > 1500:
                         market = market[:1500] + "..."
@@ -139,7 +141,6 @@ Respond ONLY with the JSON object, no other text."""
         candidates: List[CandidateStock],
     ) -> PortfolioResult:
         """Parse the LLM's allocation response into structured data."""
-        # Extract JSON from response (handle markdown code blocks)
         json_text = response_text.strip()
         if "```json" in json_text:
             json_text = json_text.split("```json")[1].split("```")[0].strip()
@@ -149,7 +150,6 @@ Respond ONLY with the JSON object, no other text."""
         try:
             data = json.loads(json_text)
         except json.JSONDecodeError:
-            # Fallback: create a simple equal-weight allocation for BUY signals
             return self._fallback_allocation(request, candidates)
 
         allocations = []
@@ -191,7 +191,7 @@ Respond ONLY with the JSON object, no other text."""
         """Simple equal-weight allocation for BUY signals when LLM parsing fails."""
         buy_candidates = [c for c in candidates if c.signal == "BUY"]
         if not buy_candidates:
-            buy_candidates = candidates[:1]  # At least try the top candidate
+            buy_candidates = candidates[:1]
 
         cash_pct = 0.10 if request.risk_tolerance == RiskTolerance.MODERATE else (
             0.20 if request.risk_tolerance == RiskTolerance.CONSERVATIVE else 0.05
