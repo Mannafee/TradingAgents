@@ -1806,7 +1806,7 @@ def update_parallel_display(layout, trackers, candidates, request, stats_handler
                     signal_cell = "[red]ERROR[/red]"
                 else:
                     signal_color = {"BUY": "green", "SELL": "red", "HOLD": "yellow"}.get(tracker.signal, "white")
-                    signal_cell = f"[bold {signal_color}]{tracker.signal}[/{signal_color}]"
+                    signal_cell = f"[bold {signal_color}]{tracker.signal}[/bold {signal_color}]"
             else:
                 signal_cell = "[dim]...[/dim]"
 
