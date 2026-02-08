@@ -1,7 +1,10 @@
 import questionary
 from typing import List, Optional, Tuple, Dict
+from rich.console import Console
 
-from cli.models import AnalystType
+from cli.models import AnalystType, RiskToleranceChoice, StockUniverseChoice
+
+console = Console()
 
 ANALYST_ORDER = [
     ("Market Analyst", AnalystType.MARKET),
@@ -306,6 +309,168 @@ def ask_openai_reasoning_effort() -> str:
             ("pointer", "fg:cyan noinherit"),
         ]),
     ).ask()
+
+
+def get_budget() -> Tuple[float, str]:
+    """Prompt for budget amount and currency."""
+    CURRENCY_OPTIONS = [
+        ("USD - US Dollar", "USD"),
+        ("EUR - Euro", "EUR"),
+        ("GBP - British Pound", "GBP"),
+        ("JPY - Japanese Yen", "JPY"),
+        ("CHF - Swiss Franc", "CHF"),
+        ("CAD - Canadian Dollar", "CAD"),
+        ("AUD - Australian Dollar", "AUD"),
+    ]
+
+    currency_choice = questionary.select(
+        "Select your currency:",
+        choices=[
+            questionary.Choice(display, value=value)
+            for display, value in CURRENCY_OPTIONS
+        ],
+        style=questionary.Style([
+            ("selected", "fg:green noinherit"),
+            ("highlighted", "fg:green noinherit"),
+            ("pointer", "fg:green noinherit"),
+        ]),
+    ).ask()
+
+    if not currency_choice:
+        console.print("\n[red]No currency selected. Exiting...[/red]")
+        exit(1)
+
+    amount_str = questionary.text(
+        f"Enter your investment budget ({currency_choice}):",
+        validate=lambda x: (
+            x.strip().replace(".", "", 1).isdigit() and float(x.strip()) > 0
+        ) or "Please enter a positive number.",
+        style=questionary.Style([
+            ("text", "fg:green"),
+            ("highlighted", "noinherit"),
+        ]),
+    ).ask()
+
+    if not amount_str:
+        console.print("\n[red]No budget provided. Exiting...[/red]")
+        exit(1)
+
+    return float(amount_str.strip()), currency_choice
+
+
+def get_time_horizon() -> int:
+    """Prompt for time horizon in days."""
+    TIME_OPTIONS = [
+        ("1 day (intraday/swing)", 1),
+        ("1 week", 7),
+        ("2 weeks", 14),
+        ("1 month", 30),
+        ("3 months", 90),
+    ]
+
+    choice = questionary.select(
+        "Select your investment time horizon:",
+        choices=[
+            questionary.Choice(display, value=value)
+            for display, value in TIME_OPTIONS
+        ],
+        style=questionary.Style([
+            ("selected", "fg:yellow noinherit"),
+            ("highlighted", "fg:yellow noinherit"),
+            ("pointer", "fg:yellow noinherit"),
+        ]),
+    ).ask()
+
+    if choice is None:
+        console.print("\n[red]No time horizon selected. Exiting...[/red]")
+        exit(1)
+
+    return choice
+
+
+def select_risk_tolerance() -> str:
+    """Prompt for risk tolerance level."""
+    RISK_OPTIONS = [
+        ("Conservative - Prioritize capital preservation, lower risk", "conservative"),
+        ("Moderate - Balanced risk and reward", "moderate"),
+        ("Aggressive - Maximize potential returns, higher risk", "aggressive"),
+    ]
+
+    choice = questionary.select(
+        "Select your risk tolerance:",
+        choices=[
+            questionary.Choice(display, value=value)
+            for display, value in RISK_OPTIONS
+        ],
+        style=questionary.Style([
+            ("selected", "fg:yellow noinherit"),
+            ("highlighted", "fg:yellow noinherit"),
+            ("pointer", "fg:yellow noinherit"),
+        ]),
+    ).ask()
+
+    if choice is None:
+        console.print("\n[red]No risk tolerance selected. Exiting...[/red]")
+        exit(1)
+
+    return choice
+
+
+def select_stock_universe() -> str:
+    """Prompt for stock universe to screen."""
+    UNIVERSE_OPTIONS = [
+        ("S&P 500 Top 50 - Largest, most liquid US stocks (recommended)", "sp500_top50"),
+        ("NASDAQ Top 30 - Tech-focused growth stocks", "nasdaq_top30"),
+        ("Popular ETFs - Diversified index & sector ETFs", "etf_popular"),
+    ]
+
+    choice = questionary.select(
+        "Select stock universe to screen:",
+        choices=[
+            questionary.Choice(display, value=value)
+            for display, value in UNIVERSE_OPTIONS
+        ],
+        style=questionary.Style([
+            ("selected", "fg:cyan noinherit"),
+            ("highlighted", "fg:cyan noinherit"),
+            ("pointer", "fg:cyan noinherit"),
+        ]),
+    ).ask()
+
+    if choice is None:
+        console.print("\n[red]No stock universe selected. Exiting...[/red]")
+        exit(1)
+
+    return choice
+
+
+def select_max_candidates() -> int:
+    """Prompt for number of stocks to deeply analyze."""
+    CANDIDATE_OPTIONS = [
+        ("2 stocks - Faster, lower cost (~4-10 min, ~40 LLM calls)", 2),
+        ("3 stocks - Good balance (recommended, ~6-15 min, ~60 LLM calls)", 3),
+        ("4 stocks - More diversified (~8-20 min, ~80 LLM calls)", 4),
+        ("5 stocks - Maximum coverage (~10-25 min, ~100 LLM calls)", 5),
+    ]
+
+    choice = questionary.select(
+        "How many stocks to deeply analyze?",
+        choices=[
+            questionary.Choice(display, value=value)
+            for display, value in CANDIDATE_OPTIONS
+        ],
+        style=questionary.Style([
+            ("selected", "fg:cyan noinherit"),
+            ("highlighted", "fg:cyan noinherit"),
+            ("pointer", "fg:cyan noinherit"),
+        ]),
+    ).ask()
+
+    if choice is None:
+        console.print("\n[red]No candidate count selected. Exiting...[/red]")
+        exit(1)
+
+    return choice
 
 
 def ask_gemini_thinking_config() -> str | None:

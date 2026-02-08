@@ -31,4 +31,7 @@ DEFAULT_CONFIG = {
     "tool_vendors": {
         # Example: "get_stock_data": "alpha_vantage",  # Override category default
     },
+    # Portfolio advisor settings
+    "portfolio_default_universe": "sp500_top50",
+    "portfolio_screening_period": "1mo",
 }
