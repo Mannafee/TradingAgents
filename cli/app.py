@@ -5,7 +5,7 @@ import asyncio
 import datetime
 import typer
 from pathlib import Path
-from rich.console import Console
+from rich.console import Console, Group
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -635,8 +635,7 @@ def create_portfolio_live_layout():
         Layout(name="pipeline", ratio=2),
     )
     layout["right"].split_column(
-        Layout(name="feed", ratio=2),
-        Layout(name="discussion", ratio=3),
+        Layout(name="discussion", ratio=1),
     )
     return layout
 
@@ -647,10 +646,8 @@ def update_portfolio_live_display(
     stock_phase: Dict[str, str],
     stock_signal: Dict[str, str],
     stock_agent: Dict[str, str],
-    activity,
+    ticker_chat: Dict[str, Any],
     focus_ticker: str,
-    focus_title: str,
-    focus_content: str,
     global_phase: str,
     request,
     stats_tracker,
@@ -722,24 +719,54 @@ def update_portfolio_live_display(
         Panel(pipeline_table, title="Runtime Metrics", border_style="blue", padding=(1, 2))
     )
 
-    feed_table = Table(show_header=True, box=box.SIMPLE, expand=True, padding=(0, 1))
-    feed_table.add_column("Time", style="cyan", width=8, justify="center")
-    feed_table.add_column("Ticker", style="green", width=8, justify="center")
-    feed_table.add_column("Actor", style="magenta", width=20)
-    feed_table.add_column("Update", style="white", ratio=1)
+    chat_messages = list(ticker_chat.get(focus_ticker, []))
+    chat_renderables = []
+    if not chat_messages:
+        chat_renderables.append(
+            Panel(
+                "Waiting for first agent discussion message...",
+                border_style="grey50",
+                padding=(0, 1),
+            )
+        )
+    else:
+        for ts, actor, content in chat_messages[-8:]:
+            actor_key = actor.lower()
+            if "bull" in actor_key:
+                color = "green"
+            elif "bear" in actor_key:
+                color = "red"
+            elif "aggressive" in actor_key:
+                color = "bright_red"
+            elif "conservative" in actor_key:
+                color = "yellow"
+            elif "neutral" in actor_key:
+                color = "cyan"
+            elif "trader" in actor_key:
+                color = "blue"
+            elif "manager" in actor_key or "result" in actor_key or "signal" in actor_key:
+                color = "magenta"
+            elif "error" in actor_key:
+                color = "red"
+            else:
+                color = "white"
 
-    for ts, ticker, actor, content in reversed(list(activity)[-14:]):
-        feed_table.add_row(ts, ticker, actor, _clip_text(content, 170))
+            chat_renderables.append(
+                Panel(
+                    _clip_text(content, 480),
+                    title=f"{ts}  {actor}",
+                    border_style=color,
+                    padding=(0, 1),
+                )
+            )
 
-    layout["feed"].update(
-        Panel(feed_table, title="Live Agent Feed", border_style="bright_magenta", padding=(1, 1))
-    )
-
-    if not focus_content:
-        focus_content = "Waiting for first agent output..."
-    discussion_md = f"### {focus_title}\n\n{focus_content}"
     layout["discussion"].update(
-        Panel(Markdown(discussion_md), title=f"Discussion Focus: {focus_ticker}", border_style="green", padding=(1, 2))
+        Panel(
+            Group(*chat_renderables),
+            title=f"Agent Chat: {focus_ticker}",
+            border_style="green",
+            padding=(1, 1),
+        )
     )
 
     footer_table = Table(show_header=False, box=None, expand=True, padding=(0, 2))
@@ -954,9 +981,8 @@ def run_portfolio_analysis():
     stock_signal = {c.ticker: "" for c in candidates}
     stock_agent = {c.ticker: "Waiting" for c in candidates}
     activity = deque(maxlen=240)
+    ticker_chat = {c.ticker: deque(maxlen=40) for c in candidates}
     focus_ticker = candidates[0].ticker
-    focus_title = "System"
-    focus_content = "Waiting for live agent output..."
     global_phase = "analyzing"
 
     portfolio_error = None
@@ -964,14 +990,20 @@ def run_portfolio_analysis():
     done_event = threading.Event()
     state_lock = threading.Lock()
 
-    def _add_activity(ticker: str, actor: str, content: str, focus: bool = False):
-        nonlocal focus_ticker, focus_title, focus_content
+    def _add_activity(
+        ticker: str,
+        actor: str,
+        content: str,
+        focus: bool = False,
+        chat: bool = False,
+    ):
+        nonlocal focus_ticker
         ts = datetime.datetime.now().strftime("%H:%M:%S")
         activity.append((ts, ticker, actor, content))
+        if chat and ticker in ticker_chat:
+            ticker_chat[ticker].append((ts, actor, content))
         if focus:
             focus_ticker = ticker
-            focus_title = actor
-            focus_content = content
 
     def progress(phase, msg):
         nonlocal global_phase
@@ -1008,14 +1040,14 @@ def run_portfolio_analysis():
                 label = PORTFOLIO_AGENT_LABELS.get(agent_key, agent_key.replace("_", " ").title())
                 stock_agent[ticker] = label
                 message = event.get("content", "") or "Completed step."
-                _add_activity(ticker, label, message, focus=True)
+                _add_activity(ticker, label, message, focus=True, chat=True)
                 return
 
             if kind == "signal":
                 signal = event.get("signal", "")
                 stock_signal[ticker] = signal
                 stock_phase[ticker] = "signal"
-                _add_activity(ticker, "Signal", f"Extracted signal: {signal}")
+                _add_activity(ticker, "Signal", f"Extracted signal: {signal}", focus=True, chat=True)
                 return
 
             if kind == "ticker_completed":
@@ -1024,7 +1056,7 @@ def run_portfolio_analysis():
                 stock_signal[ticker] = signal
                 stock_phase[ticker] = "completed"
                 stock_agent[ticker] = "Done"
-                _add_activity(ticker, "Result", f"Final signal: {signal}\n\n{summary}", focus=True)
+                _add_activity(ticker, "Result", f"Final signal: {signal}\n\n{summary}", focus=True, chat=True)
                 return
 
             if kind == "ticker_error":
@@ -1032,7 +1064,7 @@ def run_portfolio_analysis():
                 stock_signal[ticker] = "ERROR"
                 stock_phase[ticker] = "error"
                 stock_agent[ticker] = "Error"
-                _add_activity(ticker, "Error", err, focus=True)
+                _add_activity(ticker, "Error", err, focus=True, chat=True)
 
     # Run async portfolio analysis
     async def _run_portfolio():
@@ -1074,10 +1106,8 @@ def run_portfolio_analysis():
                     stock_phase=stock_phase,
                     stock_signal=stock_signal,
                     stock_agent=stock_agent,
-                    activity=activity,
+                    ticker_chat=ticker_chat,
                     focus_ticker=focus_ticker,
-                    focus_title=focus_title,
-                    focus_content=focus_content,
                     global_phase=global_phase,
                     request=request,
                     stats_tracker=stats_tracker,
@@ -1093,10 +1123,8 @@ def run_portfolio_analysis():
                 stock_phase=stock_phase,
                 stock_signal=stock_signal,
                 stock_agent=stock_agent,
-                activity=activity,
+                ticker_chat=ticker_chat,
                 focus_ticker=focus_ticker,
-                focus_title=focus_title,
-                focus_content=focus_content,
                 global_phase=global_phase,
                 request=request,
                 stats_tracker=stats_tracker,
